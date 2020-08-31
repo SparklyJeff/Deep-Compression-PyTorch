@@ -16,25 +16,33 @@ class PruningModule(Module):
             **kwargs: may contain `cuda`
         """
         # Calculate percentile value
-        alive_parameters = []
+        '''alive_parameters = []
         for name, p in self.named_parameters():
             # We do not prune bias term
             if 'bias' in name or 'mask' in name:
                 continue
             tensor = p.data.cpu().numpy()
-            alive = tensor[np.nonzero(tensor)] # flattened array of nonzero values
+            alive = tensor[:] # flattened array of nonzero values
             alive_parameters.append(alive)
 
         all_alives = np.concatenate(alive_parameters)
         percentile_value = np.percentile(abs(all_alives), q)
-        print(f'Pruning with threshold : {percentile_value}')
+        print(f'Pruning with threshold : {percentile_value}') '''
 
         # Prune the weights and mask
         # Note that module here is the layer
         # ex) fc1, fc2, fc3
         for name, module in self.named_modules():
             if name in ['fc1', 'fc2', 'fc3']:
-                module.prune(threshold=percentile_value)
+                threshold = np.percentile(abs(module.weight.data.cpu().numpy()), q)
+                module.prune(threshold)
+                print(f'Pruning with threshold : {threshold} for layer {name}')
+
+    def prune_by_threshold(self, limit = 0.05):
+        for name, module in self.named_modules():
+            if name in ['fc1', 'fc2', 'fc3']:
+                module.prune(limit)
+                print(f'Soft pruning with limit : {limit} for layer {name}')
 
     def prune_by_std(self, s=0.25):
         """
@@ -47,7 +55,8 @@ class PruningModule(Module):
         """
         for name, module in self.named_modules():
             if name in ['fc1', 'fc2', 'fc3']:
-                threshold = np.std(module.weight.data.cpu().numpy()) * s
+                #threshold = np.std(module.weight.data.cpu().numpy()) * s
+
                 print(f'Pruning with threshold : {threshold} for layer {name}')
                 module.prune(threshold)
 
@@ -103,15 +112,22 @@ class MaskedLinear(Module):
             + ', out_features=' + str(self.out_features) \
             + ', bias=' + str(self.bias is not None) + ')'
 
-    def prune(self, threshold):
+    def prune(self, threshold, q = 95):
         weight_dev = self.weight.device
         mask_dev = self.mask.device
         # Convert Tensors to numpy and calculate
         tensor = self.weight.data.cpu().numpy()
         mask = self.mask.data.cpu().numpy()
-        new_mask = np.where(abs(tensor) < threshold, 0, mask)
+        hard_threshold = np.percentile(abs(tensor), q)
+        #new_mask = np.where(abs(tensor) < threshold, 0, mask)
+        Mask1 = np.where (tensor>threshold, tensor-threshold, 0)
+        Mask2 = np.where (tensor<-threshold, tensor+threshold, 0)
+        Mask3 = np.where (abs(tensor) >= hard_threshold, tensor, Mask1 + Mask2)
+        tensor = Mask3.astype(np.float32)      
+        new_mask =  np.where (Mask3==0, 0, 1).astype(np.float32)
         # Apply new weight and mask
         self.weight.data = torch.from_numpy(tensor * new_mask).to(weight_dev)
+        tensor = tensor.astype(np.float32)
         self.mask.data = torch.from_numpy(new_mask).to(mask_dev)
 
 
