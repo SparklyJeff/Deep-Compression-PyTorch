@@ -67,3 +67,4 @@ Note that I didn’t apply pruning nor weight sharing nor Huffman coding  for bi
 
 Note that this work was done when I was employed at http://nota.ai
 
+# Modified-Pruning
