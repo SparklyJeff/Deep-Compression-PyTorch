@@ -76,7 +76,7 @@ util.print_model_parameters(model)
 optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=0.0001)
 initial_optimizer_state_dict = optimizer.state_dict()
 
-def train(epochs):
+def train(epochs, flag = False):
     model.train()
     for epoch in range(epochs):
         pbar = tqdm(enumerate(train_loader), total=len(train_loader))
@@ -88,20 +88,22 @@ def train(epochs):
             loss.backward()
 
             # zero-out all the gradients corresponding to the pruned connections
-            for name, p in model.named_parameters():
-                if 'mask' in name:
-                    continue
-                tensor = p.data.cpu().numpy()
-                grad_tensor = p.grad.data.cpu().numpy()
-                grad_tensor = np.where(tensor==0, 0, grad_tensor)
-                p.grad.data = torch.from_numpy(grad_tensor).to(device)
-
+            if flag: 
+                for name, p in model.named_parameters():
+                    if 'mask' in name:
+                        continue
+                    tensor = p.data.cpu().numpy()
+                    grad_tensor = p.grad.data.cpu().numpy()
+                    grad_tensor = np.where(tensor==0, 0, grad_tensor)
+                    p.grad.data = torch.from_numpy(grad_tensor).to(device)
             optimizer.step()
             if batch_idx % args.log_interval == 0:
                 done = batch_idx * len(data)
                 percentage = 100. * batch_idx / len(train_loader)
                 pbar.set_description(f'Train Epoch: {epoch} [{done:5}/{len(train_loader.dataset)} ({percentage:3.0f}%)]  Loss: {loss.item():.6f}')
-
+        if not flag:
+            #model.prune_by_std(args.sensitivity)
+            model.prune_by_threshold()
 
 def test():
     model.eval()
@@ -124,6 +126,7 @@ def test():
 # Initial training
 print("--- Initial training ---")
 train(args.epochs)
+#model = torch.load(f"saves/initial_model.ptmodel")
 accuracy = test()
 util.log(args.log, f"initial_accuracy {accuracy}")
 torch.save(model, f"saves/initial_model.ptmodel")
@@ -131,16 +134,18 @@ print("--- Before pruning ---")
 util.print_nonzeros(model)
 
 # Pruning
-model.prune_by_std(args.sensitivity)
+#model.prune_by_percentile(args.sensitivity)
+model.prune_by_threshold()
 accuracy = test()
 util.log(args.log, f"accuracy_after_pruning {accuracy}")
 print("--- After pruning ---")
 util.print_nonzeros(model)
-
+#exit()
 # Retrain
 print("--- Retraining ---")
+#optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0001)
 optimizer.load_state_dict(initial_optimizer_state_dict) # Reset the optimizer
-train(args.epochs)
+train(args.epochs, True)
 torch.save(model, f"saves/model_after_retraining.ptmodel")
 accuracy = test()
 util.log(args.log, f"accuracy_after_retraining {accuracy}")
