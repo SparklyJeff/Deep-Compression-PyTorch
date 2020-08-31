@@ -1,3 +1,12 @@
+# Modified-Pruning
+Free-lance PyTorch modification project of Deep Compression model (more details can be found below) by Jeffrey Cao
+
+Experiments with:
+- Pruning by Standard Deviation (STD)
+- Pruning by Percentile
+- Soft Thresholding
+- Trimmed Thresholding
+
 # Deep-Compression-PyTorch
 PyTorch implementation of 'Deep Compression: Compressing Deep Neural Networks with Pruning, Trained Quantization and Huffman Coding'  by Song Han, Huizi Mao, William J. Dally
 
@@ -62,9 +71,3 @@ This command
 
 
 
-## Note
-Note that I didn’t apply pruning nor weight sharing nor Huffman coding  for bias values. Maybe it’s better if I apply those to the biases as well, I haven’t try this out yet.
-
-Note that this work was done when I was employed at http://nota.ai
-
-# Modified-Pruning
